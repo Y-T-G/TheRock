@@ -2955,5 +2955,43 @@ class TestGfx110xWindowsTestLever(unittest.TestCase):
         self.assertNotEqual(entry["test-runs-on"], "")
 
 
+# ---------------------------------------------------------------------------
+class TestCpuTestOnlyLabel(unittest.TestCase):
+    """ci:cpu-test-only label: disable GPU tests, keep CPU-only tests."""
+
+    def _expand(self, pr_labels=None, platform="linux", family="gfx94x"):
+        ci_inputs = cm.CIInputs(
+            run_id="1",
+            event_name="pull_request",
+            commit_ref="feature",
+            base_ref="HEAD^1",
+            build_variant="release",
+            pr_labels=pr_labels or [],
+        )
+        result = cm.expand_build_configs(
+            ci_inputs=ci_inputs,
+            git_context=cm.GitContext(),
+            targets=cm.TargetSelection(**{f"{platform}_families": [family]}),
+            jobs=_jobs(),
+        )
+        return getattr(result, platform).per_family_info[0]
+
+    def test_label_disables_gpu_keeps_cpu(self):
+        """Label disables GPU tests but keeps CPU runner and tests_enabled."""
+        entry = self._expand(pr_labels=["ci:cpu-test-only"])
+        self.assertEqual(entry["test-runs-on"], "")
+        self.assertNotEqual(entry["test-runs-on-cpu"], "")
+        self.assertTrue(entry["tests_enabled"])
+
+    def test_without_label_gpu_tests_run(self):
+        """Without label, GPU tests run normally."""
+        self.assertNotEqual(self._expand()["test-runs-on"], "")
+
+    def test_works_on_windows(self):
+        """Label works on Windows."""
+        entry = self._expand(["ci:cpu-test-only"], platform="windows", family="gfx110x")
+        self.assertEqual(entry["test-runs-on"], "")
+
+
 if __name__ == "__main__":
     unittest.main()
